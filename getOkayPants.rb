@@ -4,7 +4,7 @@ require 'pry'
 require 'zip/zip'
 
 class GetOkayPants
-  attr_accessor :agent, :first_page, :chapter_markers, :range
+  attr_accessor :agent, :first_page, :chapter_markers, :range, :previous_url
 
   def initialize(range)
     @agent = Mechanize.new
@@ -21,7 +21,7 @@ class GetOkayPants
     @chapter_markers = {}
     i = 1
     @first_page = 0
-    load_chapter = 1
+    load_chapter = 13
     if @range && @range.is_a?(Array)
       load_chapter = @range.first
     end
@@ -37,7 +37,7 @@ class GetOkayPants
 
   def start_download
     # Start with first page of first Chapter
-    url = "http://web.archive.org/web/20071008120752/http://www.okaypants.com/comic.php?st="
+    url = "http://web.archive.org/web/20071008120152/http://www.okaypants.com/comic.php?st="
     page = @agent.get("#{url}#{@first_page}")
     puts @agent.current_page().uri()
 
@@ -61,10 +61,13 @@ class GetOkayPants
       comic_image = page.search("//img[contains(@src,'comic')]").first.attributes["src"].to_s
       comic_url = "http://web.archive.org#{comic_image}"
       image_name = comic_image.split('/')[-1]
-      comic_redirect_page = @agent.get(comic_url)
-      if comic_redirect_page.code == "302"
-        comic_url = "http://web.archive.org#{comic_redirect_page.header['location']}"
-        @agent.get("#{comic_url}").save("#{chapter_directory(current_chapter[:chapter_id])}/#{image_name}")
+      begin
+        comic_redirect_page = @agent.get(comic_url)
+        if comic_redirect_page.code == "302"
+          comic_url = "http://web.archive.org#{comic_redirect_page.header['location']}"
+          @agent.get("#{comic_url}").save("#{chapter_directory(current_chapter[:chapter_id])}/#{image_name}")
+        end
+      rescue Net::HTTPNotFound, Mechanize::ResponseCodeError => e
       end
       puts "Currently Downloading: #{current_chapter[:chapter_name]}"
       puts "Downloading comic address: #{comic_url}"
@@ -72,15 +75,27 @@ class GetOkayPants
       next_link = page.link_with(:text => "Next")
       if next_link
         next_url = "http://web.archive.org#{next_link.href}"
-        next_page = @agent.get(next_url)
-        if next_page.code == "302"
-          @agent.get "http://web.archive.org#{next_page.header['location']}"
-        end
+        goto_redirected_url(next_url, url)
       else
         zip_previous_chapter(current_chapter[:chapter_id])
         keep_going = false
       end
       sleep(0.5)
+    end
+  end
+
+  def goto_redirected_url(next_url, base_url)
+    comic_id = next_url.split("http://www.okaypants.com/comic.php?st=")[-1].to_i
+    next_url = "#{base_url}050122" if comic_id == 50118
+    if @previous_url == next_url
+      comic_id = comic_id + 1
+      next_url = "#{base_url}0#{comic_id.to_s}"
+    end
+    next_page = @agent.get(next_url)
+    if next_page.code == "302"
+      new_url = "http://web.archive.org#{next_page.header['location']}"
+      @agent.get new_url
+      @previous_url = new_url
     end
   end
 
@@ -119,23 +134,6 @@ class GetOkayPants
 
 end
 
-# puts "What chapter range of Scary Go Round would you like to download?"
-# puts "(enter hyphenated range) e.g. chapter 1-3 like this: '1-3'"
-# puts "For all comics press Enter."
-# $stdout.flush
-# chapter_range = gets.chomp
-# if chapter_range.include? "-"
-#   chapter_range_array = chapter_range.split("-").map(&:to_i)
-#   puts "You would like Chapter #{chapter_range_array.first} through #{chapter_range_array.last}?"
-# else
-#   puts "You would like all Chapters?"
-# end
-# puts "Enter Yes or No"
-# response = gets.chomp
-# if ['yes','Yes','y','Y'].any?{ |word| response.include?(word) }
-  GetOkayPants.new_download(nil)
-# else
-#   puts "Exiting..."
-# end
+GetOkayPants.new_download(nil)
 
 exit
