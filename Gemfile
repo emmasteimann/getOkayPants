@@ -4,3 +4,4 @@ ruby '1.9.3'
 gem 'mechanize'
 gem 'pry'
 gem 'rubyzip'
+gem "mini_magick"

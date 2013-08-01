@@ -1,6 +1,7 @@
 require 'mechanize'
 require 'logger'
 require 'pry'
+require "mini_magick"
 require 'zip/zip'
 
 class GetOkayPants
@@ -80,7 +81,14 @@ class GetOkayPants
         comic_redirect_page = @agent.get(comic_url)
         if comic_redirect_page.code == "302"
           comic_url = "http://web.archive.org#{comic_redirect_page.header['location']}"
-          @agent.get("#{comic_url}").save("#{chapter_directory(current_chapter[:chapter_id])}/#{page_cursor}_#{image_name}")
+          if image_name.include? "gif"
+            image = MiniMagick::Image.open(comic_url)
+            image.format "jpg"
+            image.write("#{chapter_directory(current_chapter[:chapter_id])}/#{page_cursor}_#{image_name.gsub("gif","jpg")}")
+          else
+            comic_image = @agent.get("#{comic_url}")
+            comic_image.save("#{chapter_directory(current_chapter[:chapter_id])}/#{page_cursor}_#{image_name}")
+          end
         end
       rescue Net::HTTPNotFound => e
       rescue Net::HTTPServiceUnavailable, Mechanize::ResponseCodeError => e
