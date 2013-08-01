@@ -21,7 +21,7 @@ class GetOkayPants
     @chapter_markers = {}
     i = 1
     @first_page = 0
-    load_chapter = 13
+    load_chapter = 1
     if @range && @range.is_a?(Array)
       load_chapter = @range.first
     end
@@ -36,13 +36,28 @@ class GetOkayPants
   end
 
   def start_download
+    cbz_dir = "okpants_comics"
+    if File.directory?(cbz_dir)
+      FileUtils.mv cbz_dir, Time.now.to_i.to_s + "_" + cbz_dir
+    end
+    raw_dir = "saved_comics"
+    if File.directory?(raw_dir)
+      FileUtils.mv raw_dir, Time.now.to_i.to_s + "_" + raw_dir
+    end
+    # if File.directory?("okpants_comics")
+    #   FileUtils.rm_rf("okpants_comics")
+    # end
+    # if File.directory?("saved_comics")
+    #   FileUtils.rm_rf("saved_comics")
+    # end
     # Start with first page of first Chapter
-    url = "http://web.archive.org/web/20071008120152/http://www.okaypants.com/comic.php?st="
+    url = "http://web.archive.org/web/20071008120752/http://www.okaypants.com/comic.php?st="
     page = @agent.get("#{url}#{@first_page}")
     puts @agent.current_page().uri()
 
     keep_going = true
     current_chapter = {}
+    page_cursor = 1
     while keep_going
       page = @agent.current_page()
       current_page_id = page.uri().to_s.split("http://www.okaypants.com/comic.php?st=")[-1]
@@ -65,9 +80,15 @@ class GetOkayPants
         comic_redirect_page = @agent.get(comic_url)
         if comic_redirect_page.code == "302"
           comic_url = "http://web.archive.org#{comic_redirect_page.header['location']}"
-          @agent.get("#{comic_url}").save("#{chapter_directory(current_chapter[:chapter_id])}/#{image_name}")
+          @agent.get("#{comic_url}").save("#{chapter_directory(current_chapter[:chapter_id])}/#{page_cursor}_#{image_name}")
         end
-      rescue Net::HTTPNotFound, Mechanize::ResponseCodeError => e
+      rescue Net::HTTPNotFound => e
+      rescue Net::HTTPServiceUnavailable, Mechanize::ResponseCodeError => e
+        retry_count += 1
+        unless retry_count > 3
+          sleep(3)
+          retry
+        end
       end
       puts "Currently Downloading: #{current_chapter[:chapter_name]}"
       puts "Downloading comic address: #{comic_url}"
@@ -80,7 +101,8 @@ class GetOkayPants
         zip_previous_chapter(current_chapter[:chapter_id])
         keep_going = false
       end
-      sleep(0.5)
+      page_cursor = page_cursor + 1
+      sleep(1)
     end
   end
 
@@ -91,10 +113,26 @@ class GetOkayPants
       comic_id = comic_id + 1
       next_url = "#{base_url}0#{comic_id.to_s}"
     end
-    next_page = @agent.get(next_url)
+    begin
+      next_page = @agent.get(next_url)
+    rescue Mechanize::ResponseCodeError, Net::HTTPServiceUnavailable => e
+      retry_count += 1
+      unless retry_count > 3
+        sleep(3)
+        retry
+      end
+    end
     if next_page.code == "302"
       new_url = "http://web.archive.org#{next_page.header['location']}"
-      @agent.get new_url
+      begin
+        @agent.get new_url
+      rescue Mechanize::ResponseCodeError, Net::HTTPServiceUnavailable => e
+        retry_count += 1
+        unless retry_count > 3
+          sleep(3)
+          retry
+        end
+      end
       @previous_url = new_url
     end
   end
