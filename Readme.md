@@ -12,7 +12,7 @@ How to use...
 A downloader tool for my favorite webcomic.
 
   - Run `bundle`
-  - Run `bundle exec ruby getOkayPants.rb`
+  - Run `bundle exec ruby get_okay_pants.rb`
   - Enjoy all of Okay Pants!
 
 What this does....

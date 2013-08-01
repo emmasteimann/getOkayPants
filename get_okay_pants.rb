@@ -17,7 +17,7 @@ class GetOkayPants
 
   def prep_chapters
     # Prep Chapter Markers
-    page = agent.get("http://web.archive.org/web/20070703080037/http://www.okaypants.com/comic.php")
+    page = @agent.get("http://web.archive.org/web/20070703080037/http://www.okaypants.com/comic.php")
     @chapter_markers = {}
     i = 1
     @first_page = 0
